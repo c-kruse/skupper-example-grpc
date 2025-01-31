@@ -1,203 +1,351 @@
-# Multi-cluster Cloud-Native grpc (microservices) application demo
+<!-- NOTE: This file is generated from skewer.yaml.  Do not edit it directly. -->
 
-This tutorial demonstrates how to deploy the [Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo/) microservices demo application across multiple Kubernetes clusters that are located in different public and private cloud providers. This project contains a 10-tier microservices application developed by Google to demonstrate the use of technologies like Kubernetes.
+# Skupper Online Boutique
 
-In this tutorial, you will create a Virtual Application Network that enables communications across the public and private clusters. You will then deploy a subset of the application's grpc based microservices to each cluster. You will then access the `Online Boutique` web interface to browse items, add them to the cart and purchase them.
+[![main](https://github.com/c-kruse/skupper-example-grpc/actions/workflows/main.yaml/badge.svg)](https://github.com/c-kruse/skupper-example-grpc/actions/workflows/main.yaml)
 
-Top complete this tutorial, do the following:
+#### A Cloud-Native gRPC microservice-based application deployed across multiple Kubernetes clusters using Skupper
 
+This example is part of a [suite of examples][examples] showing the
+different ways you can use [Skupper][website] to connect services
+across cloud providers, data centers, and edge sites.
+
+[website]: https://skupper.io/
+[examples]: https://skupper.io/examples/index.html
+
+#### Contents
+
+* [Overview](#overview)
 * [Prerequisites](#prerequisites)
-* [Step 1: Set up the demo](#step-1-set-up-the-demo)
-* [Step 2: Deploy the Virtual Application Network](#step-2-deploy-the-virtual-application-network)
-* [Step 3: Deploy the application microservices](#step-3-deploy-the-application-microservices)
-* [Step 4: Expose the microservices to the Virtual Application Network](#step-4-expose-the-microservices-to-the-virtual-application-network)
-* [Step 5: Access the Online Boutique Application](#step-5-access-the-boutique-shop-application)
+* [Step 1: Set up your clusters](#step-1-set-up-your-clusters)
+* [Step 2: Install Skupper on your clusters](#step-2-install-skupper-on-your-clusters)
+* [Step 3: Apply Kubernetes Resources](#step-3-apply-kubernetes-resources)
+* [Step 4: Wait for Sites Ready](#step-4-wait-for-sites-ready)
+* [Step 5: Install the Skupper command-line tool](#step-5-install-the-skupper-command-line-tool)
+* [Step 6: Link your sites](#step-6-link-your-sites)
 * [Cleaning up](#cleaning-up)
+* [Summary](#summary)
 * [Next steps](#next-steps)
+* [About this example](#about-this-example)
+
+## Overview
+
+This tutorial demonstrates how to deploy the [Online
+Boutique](https://github.com/GoogleCloudPlatform/microservices-demo/)
+microservices demo application across multiple Kubernetes clusters that are
+located in different public and private cloud providers. This project
+contains a 10-tier microservices application developed by Google to
+demonstrate the use of technologies like Kubernetes.
+
+In this tutorial, you will create a Virtual Application Network that enables
+communications across the public and private clusters. You will then deploy a
+subset of the application's grpc based microservices to each cluster. You
+will then access the `Online Boutique` web interface to browse items, add
+them to the cart and purchase them.
 
 ## Prerequisites
 
-* The `kubectl` command-line tool, version 1.15 or later ([installation guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/))
-* The `skupper` command-line tool, the latest version ([installation guide](https://skupper.io/start/index.html#step-1-install-the-skupper-command-line-tool-in-your-environment))
+* The `kubectl` command-line tool, version 1.15 or later
+  ([installation guide][install-kubectl])
 
-The basis for this demonstration is to depict the deployment of member microservices for an application across both private and public clusters and for the ability of these microsservices to communicate across a Virtual Application Network. As an example, the cluster deployment might be comprised of:
+* Access to at least one Kubernetes cluster, from [any provider you
+  choose][kube-providers]
 
-* A private cloud cluster running on your local machine
-* Two public cloud clusters running in public cloud providers
+[install-kubectl]: https://kubernetes.io/docs/tasks/tools/install-kubectl/
+[kube-providers]: https://skupper.io/start/kubernetes.html
 
-While the detailed steps are not included here, this demonstration can alternatively be performed with three separate namespaces on a single cluster.
+## Step 1: Set up your clusters
 
-## Step 1: Set up the demo
+Skupper is designed for use with multiple Kubernetes clusters.
+The `skupper` and `kubectl` commands use your
+[kubeconfig][kubeconfig] and current context to select the cluster
+and namespace where they operate.
 
-1. On your local machine, make a directory for this tutorial and clone the example repo:
+[kubeconfig]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
 
-   ```bash
-   mkdir boutique-demo
-   cd boutique-demo
-   git clone https://github.com/skupperproject/skupper-example-grpc.git
-   ```
+Your kubeconfig is stored in a file in your home directory.  The
+`skupper` and `kubectl` commands use the `KUBECONFIG` environment
+variable to locate it.
 
-3. Prepare the target clusters.
+A single kubeconfig supports only one active context per user.
+Since you will be using multiple contexts at once in this
+exercise, you need to create multiple kubeconfigs.
 
-   1. On your local machine, log in to each cluster in a separate terminal session.
-   2. In each cluster, create a namespace to use for the demo.
-   3. In each cluster, set the kubectl config context to use the demo namespace [(see kubectl cheat sheet for more information)](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
-   ```bash
-   kubectl config set-context --current --namespace <namespace>
-   ```
+For each namespace, open a new terminal window.  In each terminal,
+set the `KUBECONFIG` environment variable to a different path and
+log in to your cluster.  Then create the namespace you wish to use
+and set the namespace on your current context.
 
-## Step 2: Deploy the Virtual Application Network
+**Note:** The login procedure varies by provider.  See the
+documentation for yours:
 
-On each cluster, using the `skupper` tool, define the Virtual Application Network and the connectivity for the peer clusters.
+* [Minikube](https://skupper.io/start/minikube.html#cluster-access)
+* [Amazon Elastic Kubernetes Service (EKS)](https://skupper.io/start/eks.html#cluster-access)
+* [Azure Kubernetes Service (AKS)](https://skupper.io/start/aks.html#cluster-access)
+* [Google Kubernetes Engine (GKE)](https://skupper.io/start/gke.html#cluster-access)
+* [IBM Kubernetes Service](https://skupper.io/start/ibmks.html#cluster-access)
+* [OpenShift](https://skupper.io/start/openshift.html#cluster-access)
 
-1. In the terminal for the first public cluster, deploy the **public1** application router. Create a connection token for connections from the **public2** cluster and the **private1** cluster:
+_**gRPC A:**_
 
-   ```bash
-   skupper init --site-name public1
-   skupper token create public1-token.yaml --uses 2
-   ```
-2. In the terminal for the second public cluster, deploy the **public2** application router, create a connection token for connections from the **private1** cluser and connect to the **public1** cluster:
+~~~ shell
+export KUBECONFIG=~/.kube/config-grpc-a
+# Enter your provider-specific login command
+kubectl create namespace grpc-a
+kubectl config set-context --current --namespace grpc-a
+~~~
 
-   ```bash
-   skupper init --site-name public2
-   skupper token create public2-token.yaml
-   skupper link create public1-token.yaml
-   ```
+_**gRPC B:**_
 
-3. In the terminal for the private cluster, deploy the **private1** application router and define its connections to the **public1** and **public2** cluster
+~~~ shell
+export KUBECONFIG=~/.kube/config-grpc-b
+# Enter your provider-specific login command
+kubectl create namespace grpc-b
+kubectl config set-context --current --namespace grpc-b
+~~~
 
-   ```bash
-   skupper init --site-name private1
-   skupper link create public1-token.yaml
-   skupper link create public2-token.yaml
-   ```
+_**gRPC C:**_
 
-4. In each of the cluster terminals, verify connectivity has been established
+~~~ shell
+export KUBECONFIG=~/.kube/config-grpc-c
+# Enter your provider-specific login command
+kubectl create namespace grpc-c
+kubectl config set-context --current --namespace grpc-c
+~~~
 
-   ```bash
-   skupper link status
-   ```
+## Step 2: Install Skupper on your clusters
 
-## Step 3: Deploy the application microservices
+Using Skupper on Kubernetes requires the installation of the
+Skupper custom resource definitions (CRDs) and the Skupper
+controller.
 
-After creating the Virtual Application Network, deploy the grpc based microservices for the `Online Boutique` application. There are three `deployment .yaml` files
-labelled *a, b, and c*. These files (arbitrarily) define a subset of the application microservices to deploy to a cluster.
+For each cluster, use `kubectl apply` with the Skupper
+installation YAML to install the CRDs and controller.
 
-| Deployment           | Microservices
-| -------------------- | ---------------------------------------- |
-| deployment-ms-a.yaml | frontend, productcatalog, recommendation |
-| deployment-ms-b.yaml | ad, cart, checkout, currency, redis-cart |
-| deployment-ms-c.yaml | email, payment, shipping                 |
+_**gRPC A:**_
 
+~~~ shell
+kubectl apply -f https://github.com/skupperproject/skupper/releases/download/v2-dev-release/skupper-cluster-scope.yaml
+~~~
 
-1. In the terminal for the **private1** cluster, deploy the following:
+_**gRPC B:**_
 
-   ```bash
-   kubectl apply -f skupper-example-grpc/deployment-ms-a.yaml
-   ```
+~~~ shell
+kubectl apply -f https://github.com/skupperproject/skupper/releases/download/v2-dev-release/skupper-cluster-scope.yaml
+~~~
 
-2. In the terminal for the **public1** cluster, deploy the following:
+_**gRPC C:**_
 
-   ```bash
-   kubectl apply -f skupper-example-grpc/deployment-ms-b.yaml
-   ```
+~~~ shell
+kubectl apply -f https://github.com/skupperproject/skupper/releases/download/v2-dev-release/skupper-cluster-scope.yaml
+~~~
 
-3. In the terminal for the **public2** cluster, deploy the following:
+## Step 3: Apply Kubernetes Resources
 
-   ```bash
-   kubectl apply -f skupper-example-grpc/deployment-ms-c.yaml
-   ```
+Apply the application deployment resources alongside the skupper
+resources describing the application network.
 
-## Step 4: Expose the microservices to the Virtual Application Network
+_**gRPC A:**_
 
-There are three script files labelled *-a, -b, and -c*. These files expose the services created above to join the Virtual Application Network. Note that the frontend service is not assigned to the Virtual Application Network as it is setup for external web access.
+~~~ shell
+kubectl apply -f resources-a
+~~~
 
+_**gRPC B:**_
 
-| File                    | Deployments
-| ----------------------- | ---------------------------------------- |
-| expose-deployments-a.sh | productcatalog, recommendation           |
-| expose-deployments-b.sh | ad, cart, checkout, currency, redis-cart |
-| expose-deployments-c.sh | email, payment, shipping                 |
+~~~ shell
+kubectl apply -f resources-b
+~~~
 
+_**gRPC C:**_
 
-1. In the terminal for the **private1** cluster, execute the following annotation script:
+~~~ shell
+kubectl apply -f resources-c
+~~~
 
-   ```bash
-   skupper-example-grpc/expose-deployments-a.sh
-   ```
+## Step 4: Wait for Sites Ready
 
-2. In the terminal for the **public1** cluster, execute the following annotation script:
+Before linking sites to form the network, wait for the Sites to be ready.
 
-   ```bash
-   skupper-example-grpc/expose-deployments-b.sh
-   ```
+_**gRPC A:**_
 
-3. In the terminal for the **public2** cluster, execute the following annotation script:
+~~~ shell
+kubectl wait --for condition=Ready site/grpc-a --timeout 240s
+~~~
 
-   ```bash
-   skupper-example-grpc/expose-deployments-c.sh
-   ```
+_**gRPC B:**_
 
-## Step 5: Access The Boutique Shop Application
+~~~ shell
+kubectl wait --for condition=Ready site/grpc-b --timeout 120s
+~~~
 
-The web frontend for the `Online Boutique` application can be accessed via the *frontend-external* service. In the
-terminal for the **private1** cluster, start a firefox browser and access the shop UI.
+_**gRPC C:**_
 
-   ```bash
-   /usr/bin/firefox --new-window  "http://$(kubectl get service frontend-external -o=jsonpath='{.spec.clusterIP}')/"
-   ```
+~~~ shell
+kubectl wait --for condition=Ready site/grpc-c --timeout 120s
+~~~
 
-Open a browser and use the url provided above to access the `Online Boutique`.
+## Step 5: Install the Skupper command-line tool
 
-## Step 6: Run the load generator
+This example uses the Skupper command-line tool to create Skupper
+resources.  You need to install the `skupper` command only once
+for each development environment.
 
-The `Online Boutique` application has a load generator that creates realistic usage patterns on the website.
+On Linux or Mac, you can use the install script (inspect it
+[here][install-script]) to download and extract the command:
 
-1. In the terminal for the **private1** cluster, deploy the load generator:
+~~~ shell
+curl https://skupper.io/install.sh | sh -s -- --version 2.0.0-preview-1
+~~~
 
-   ```bash
-   kubectl apply -f skupper-example-grpc/deployment-loadgenerator.yaml
-   ```
-2. In the terminal for the **private1** cluster, observe the output from the load generator:
+The script installs the command under your home directory.  It
+prompts you to add the command to your path if necessary.
 
-   ```bash
-   kubectl logs -f deploy/loadgenerator
-   ```
-3. In the terminal for the **private1** cluster, stop the load generator:
+For Windows and other installation options, see [Installing
+Skupper][install-docs].
 
-   ```bash
-   kubectl delete -f skupper-example-grpc/deployment-loadgenerator.yaml
-   ```
-   
-## Cleaning Up
+[install-script]: https://github.com/skupperproject/skupper-website/blob/main/input/install.sh
+[install-docs]: https://skupper.io/install/
 
-Restore your cluster environment by returning the resources created in the demonstration. On each cluster, delete the demo resources and the skupper network:
+## Step 6: Link your sites
 
-1. In the terminal for the **private1** cluster, delete the resources:
+A Skupper _link_ is a channel for communication between two sites.
+Links serve as a transport for application connections and
+requests.
 
-   ```bash
-   skupper-example-grpc/unexpose-deployments-a.sh
-   kubectl delete -f skupper-example-grpc/deployment-ms-a.yaml
-   skupper delete
-   ```
+Creating a link requires use of two Skupper commands in
+conjunction, `skupper token issue` and `skupper token redeem`.
 
-2. In the terminal for the **public1** cluster, delete the resources:
+The `skupper token issue` command generates a secret token that
+signifies permission to create a link.  The token also carries the
+link details.  Then, in a remote site, The `skupper token redeem`
+command uses the token to create a link to the site that generated
+it.
 
-   ```bash
-   skupper-example-grpc/unexpose-deployments-b.sh
-   kubectl delete -f skupper-example-grpc/deployment-ms-b.yaml
-   skupper delete
-   ```
+**Note:** The link token is truly a *secret*.  Anyone who has the
+token can link to your site.  Make sure that only those you trust
+have access to it.
 
-3. In the terminal for the **public2** cluster, delete the resources:
+First, use `skupper token issue` in gRPC A to generate the token.
+Then, use `skupper token redeem` in gRPC B to link the sites.
 
-   ```bash
-   skupper-example-grpc/unexpose-deployments-c.sh
-   kubectl delete -f skupper-example-grpc/deployment-ms-c.yaml
-   skupper delete
-   ```
+_**gRPC A:**_
 
-## Next Steps
+~~~ shell
+skupper token issue ~/grpc-a.token --redemptions-allowed=2
+~~~
 
- - [Try the example for multi-cluster distributed web services](https://github.com/skupperproject/skupper-example-bookinfo)
- - [Find more examples](https://skupper.io/examples/)
+_Sample output:_
+
+~~~ console
+$ skupper token issue ~/grpc-a.token --redemptions-allowed=2
+Waiting for token status ...
+
+Grant "grpc-a-cad4f72d-2917-49b9-ab66-cdaca4d6cf9c" is ready
+Token file grpc-a.token created
+
+Transfer this file to a remote site. At the remote site,
+create a link to this site using the "skupper token redeem" command:
+
+	skupper token redeem <file>
+
+The token expires after 1 use(s) or after 15m0s.
+~~~
+
+_**gRPC B:**_
+
+~~~ shell
+skupper token issue ~/grpc-b.token
+skupper token redeem ~/grpc-a.token
+~~~
+
+_Sample output:_
+
+~~~ console
+$ skupper token redeem ~/grpc-a.token
+Waiting for token status ...
+Token "grpc-a-cad4f72d-2917-49b9-ab66-cdaca4d6cf9c" has been redeemed
+You can now safely delete /run/user/1000/skewer/secret.token
+~~~
+
+_**gRPC C:**_
+
+~~~ shell
+skupper token redeem ~/grpc-a.token
+skupper token redeem ~/grpc-b.token
+~~~
+
+_Sample output:_
+
+~~~ console
+$ skupper token redeem ~/grpc-a.token
+Waiting for token status ...
+Token "grpc-a-cad4f72d-2917-49b9-ab66-cdaca4d6cf9c" has been redeemed
+You can now safely delete /run/user/1000/skewer/secret.token
+
+$ skupper token redeem ~/grpc-b.token
+Waiting for token status ...
+Token "grpc-b-cad4f72d-2917-49b9-ab66-cdaca4d6cf9c" has been redeemed
+You can now safely delete /run/user/1000/skewer/secret.token
+~~~
+
+If your terminal sessions are on different machines, you may need
+to use `scp` or a similar tool to transfer the token securely.  By
+default, tokens expire after a single use or 15 minutes after
+being issued.
+
+## Cleaning up
+
+To remove Skupper and the other resources from this exercise, use
+the following commands.
+
+_**gRPC A:**_
+
+~~~ shell
+kubectl delete -f resources-a
+~~~
+
+_**gRPC B:**_
+
+~~~ shell
+kubectl delete -f resources-b
+~~~
+
+_**gRPC C:**_
+
+~~~ shell
+kubectl delete -f resources-c
+~~~
+
+## Summary
+
+This example locates the many services that make up a microservice
+application across three different namespaces on different clusters with no
+modifications to the application. Without Skupper, it would normally take
+careful network planning to avoid exposing these services over the public
+internet.
+
+Introducing Skupper into each namespace allows us to create a virtual
+application network that can connect services in different clusters. Any
+service exposed on the application network is represented as a local service in
+all of the linked namespaces.
+
+<img src="images/BoutiqueProcessLocations.png" width="600"/>
+
+## Next steps
+
+Check out the other [examples][examples] on the Skupper website.
+
+## About this example
+
+This example was produced using [Skewer][skewer], a library for
+documenting and testing Skupper examples.
+
+[skewer]: https://github.com/skupperproject/skewer
+
+Skewer provides utility functions for generating the README and
+running the example steps.  Use the `./plano` command in the project
+root to see what is available.
+
+To quickly stand up the example using Minikube, try the `./plano demo`
+command.
