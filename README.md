@@ -17,8 +17,8 @@ across cloud providers, data centers, and edge sites.
 
 * [Overview](#overview)
 * [Prerequisites](#prerequisites)
-* [Step 1: Set up your clusters](#step-1-set-up-your-clusters)
-* [Step 2: Install Skupper on your clusters](#step-2-install-skupper-on-your-clusters)
+* [Step 1: Access your Kubernetes clusters](#step-1-access-your-kubernetes-clusters)
+* [Step 2: Install Skupper on your Kubernetes clusters](#step-2-install-skupper-on-your-kubernetes-clusters)
 * [Step 3: Apply Kubernetes Resources](#step-3-apply-kubernetes-resources)
 * [Step 4: Wait for Sites Ready](#step-4-wait-for-sites-ready)
 * [Step 5: Install the Skupper command-line tool](#step-5-install-the-skupper-command-line-tool)
@@ -45,16 +45,29 @@ them to the cart and purchase them.
 
 ## Prerequisites
 
-* The `kubectl` command-line tool, version 1.15 or later
-  ([installation guide][install-kubectl])
-
 * Access to at least one Kubernetes cluster, from [any provider you
-  choose][kube-providers]
+  choose][kube-providers].
 
-[install-kubectl]: https://kubernetes.io/docs/tasks/tools/install-kubectl/
+* The `kubectl` command-line tool, version 1.15 or later
+  ([installation guide][install-kubectl]).
+
+* The `skupper` command-line tool, version 2.0 or later.  On Linux
+  or Mac, you can use the install script (inspect it
+  [here][cli-install-script]) to download and extract the command:
+
+  ~~~ shell
+  curl https://skupper.io/install.sh | sh -s -- --version 2.0.0-preview-2
+  ~~~
+
+  See [Installing the Skupper CLI][cli-install-docs] for more
+  information.
+
 [kube-providers]: https://skupper.io/start/kubernetes.html
+[install-kubectl]: https://kubernetes.io/docs/tasks/tools/install-kubectl/
+[cli-install-script]: https://github.com/skupperproject/skupper-website/blob/main/input/install.sh
+[cli-install-docs]: https://skupper.io/install/
 
-## Step 1: Set up your clusters
+## Step 1: Access your Kubernetes clusters
 
 Skupper is designed for use with multiple Kubernetes clusters.
 The `skupper` and `kubectl` commands use your
@@ -63,57 +76,38 @@ and namespace where they operate.
 
 [kubeconfig]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
 
-Your kubeconfig is stored in a file in your home directory.  The
-`skupper` and `kubectl` commands use the `KUBECONFIG` environment
-variable to locate it.
+This example uses multiple cluster contexts at once. The
+`KUBECONFIG` environment variable tells `skupper` and `kubectl`
+which kubeconfig to use.
 
-A single kubeconfig supports only one active context per user.
-Since you will be using multiple contexts at once in this
-exercise, you need to create multiple kubeconfigs.
-
-For each namespace, open a new terminal window.  In each terminal,
+For each cluster, open a new terminal window.  In each terminal,
 set the `KUBECONFIG` environment variable to a different path and
-log in to your cluster.  Then create the namespace you wish to use
-and set the namespace on your current context.
-
-**Note:** The login procedure varies by provider.  See the
-documentation for yours:
-
-* [Minikube](https://skupper.io/start/minikube.html#cluster-access)
-* [Amazon Elastic Kubernetes Service (EKS)](https://skupper.io/start/eks.html#cluster-access)
-* [Azure Kubernetes Service (AKS)](https://skupper.io/start/aks.html#cluster-access)
-* [Google Kubernetes Engine (GKE)](https://skupper.io/start/gke.html#cluster-access)
-* [IBM Kubernetes Service](https://skupper.io/start/ibmks.html#cluster-access)
-* [OpenShift](https://skupper.io/start/openshift.html#cluster-access)
+log in to your cluster.
 
 _**gRPC A:**_
 
 ~~~ shell
 export KUBECONFIG=~/.kube/config-grpc-a
-# Enter your provider-specific login command
-kubectl create namespace grpc-a
-kubectl config set-context --current --namespace grpc-a
+<provider-specific login command>
 ~~~
 
 _**gRPC B:**_
 
 ~~~ shell
 export KUBECONFIG=~/.kube/config-grpc-b
-# Enter your provider-specific login command
-kubectl create namespace grpc-b
-kubectl config set-context --current --namespace grpc-b
+<provider-specific login command>
 ~~~
 
 _**gRPC C:**_
 
 ~~~ shell
 export KUBECONFIG=~/.kube/config-grpc-c
-# Enter your provider-specific login command
-kubectl create namespace grpc-c
-kubectl config set-context --current --namespace grpc-c
+<provider-specific login command>
 ~~~
 
-## Step 2: Install Skupper on your clusters
+**Note:** The login procedure varies by provider.
+
+## Step 2: Install Skupper on your Kubernetes clusters
 
 Using Skupper on Kubernetes requires the installation of the
 Skupper custom resource definitions (CRDs) and the Skupper
@@ -125,19 +119,19 @@ installation YAML to install the CRDs and controller.
 _**gRPC A:**_
 
 ~~~ shell
-kubectl apply -f https://github.com/skupperproject/skupper/releases/download/v2-dev-release/skupper-cluster-scope.yaml
+kubectl apply -f https://skupper.io/v2/install.yaml
 ~~~
 
 _**gRPC B:**_
 
 ~~~ shell
-kubectl apply -f https://github.com/skupperproject/skupper/releases/download/v2-dev-release/skupper-cluster-scope.yaml
+kubectl apply -f https://skupper.io/v2/install.yaml
 ~~~
 
 _**gRPC C:**_
 
 ~~~ shell
-kubectl apply -f https://github.com/skupperproject/skupper/releases/download/v2-dev-release/skupper-cluster-scope.yaml
+kubectl apply -f https://skupper.io/v2/install.yaml
 ~~~
 
 ## Step 3: Apply Kubernetes Resources
@@ -148,18 +142,21 @@ resources describing the application network.
 _**gRPC A:**_
 
 ~~~ shell
+kubectl create namespace grpc-a
 kubectl apply -f resources-a
 ~~~
 
 _**gRPC B:**_
 
 ~~~ shell
+kubectl create namespace grpc-b
 kubectl apply -f resources-b
 ~~~
 
 _**gRPC C:**_
 
 ~~~ shell
+kubectl create namespace grpc-c
 kubectl apply -f resources-c
 ~~~
 
@@ -195,7 +192,7 @@ On Linux or Mac, you can use the install script (inspect it
 [here][install-script]) to download and extract the command:
 
 ~~~ shell
-curl https://skupper.io/install.sh | sh -s -- --version 2.0.0-preview-1
+curl https://skupper.io/install.sh | sh -s -- --version 2.0.0-preview-2
 ~~~
 
 The script installs the command under your home directory.  It
@@ -213,14 +210,12 @@ A Skupper _link_ is a channel for communication between two sites.
 Links serve as a transport for application connections and
 requests.
 
-Creating a link requires use of two Skupper commands in
-conjunction, `skupper token issue` and `skupper token redeem`.
-
+Creating a link requires the use of two Skupper commands in
+conjunction: `skupper token issue` and `skupper token redeem`.
 The `skupper token issue` command generates a secret token that
-signifies permission to create a link.  The token also carries the
-link details.  Then, in a remote site, The `skupper token redeem`
-command uses the token to create a link to the site that generated
-it.
+can be transferred to a remote site and redeemed for a link to the
+issuing site.  The `skupper token redeem` command uses the token
+to create the link.
 
 **Note:** The link token is truly a *secret*.  Anyone who has the
 token can link to your site.  Make sure that only those you trust

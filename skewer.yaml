@@ -33,18 +33,21 @@ sites:
     env:
       KUBECONFIG: ~/.kube/config-grpc-c
 steps:
-  - standard: kubernetes/set_up_your_clusters
-  - standard: kubernetes/install_skupper_on_your_clusters
+  - standard: platform/access_your_kubernetes_clusters
+  - standard: platform/install_skupper_on_your_kubernetes_clusters
   - title: Apply Kubernetes Resources
     preamble: |
       Apply the application deployment resources alongside the skupper
       resources describing the application network.
     commands:
       grpc-a:
+        - run: kubectl create namespace grpc-a
         - run: kubectl apply -f resources-a
       grpc-b:
+        - run: kubectl create namespace grpc-b
         - run: kubectl apply -f resources-b
       grpc-c:
+        - run: kubectl create namespace grpc-c
         - run: kubectl apply -f resources-c
   - title: Wait for Sites Ready
     preamble: |
@@ -56,8 +59,8 @@ steps:
         - run: kubectl wait --for condition=Ready site/grpc-b --timeout 120s
       grpc-c:
         - run: kubectl wait --for condition=Ready site/grpc-c --timeout 120s
-  - standard: general/install_the_skupper_command_line_tool
-  - standard: kubernetes/link_your_sites
+  - standard: platform/install_the_skupper_command_line_tool
+  - standard: skupper/link_your_sites/kubernetes_cli
     commands:
       grpc-a:
         - run: skupper token issue ~/grpc-a.token --redemptions-allowed=2
@@ -91,7 +94,7 @@ steps:
             Waiting for token status ...
             Token "grpc-b-cad4f72d-2917-49b9-ab66-cdaca4d6cf9c" has been redeemed
             You can now safely delete /run/user/1000/skewer/secret.token
-  - standard: general/cleaning_up
+  - standard: skupper/cleaning_up/kubernetes_cli
     commands:
       grpc-a:
         - run: kubectl delete -f resources-a
